@@ -27,12 +27,9 @@
                     </div>
                 </div>
                 <div class="flex items-center">
-                    <form method="POST" action="{{ route('logout') }}">
-                        @csrf
-                        <button type="submit" class="text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md text-sm font-medium">
-                            Logout
-                        </button>
-                    </form>
+                    <a href="{{ route('logout.get') }}" class="text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md text-sm font-medium">
+                        Logout
+                    </a>
                 </div>
             </div>
         </div>

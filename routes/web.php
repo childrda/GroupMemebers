@@ -21,6 +21,8 @@ Route::get('/unauthorized', function () {
 // Google OAuth routes
 Route::get('/auth/google', [GoogleAuthController::class, 'redirect'])->name('auth.google');
 Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])->name('auth.google.callback');
+    // Graceful GET logout handler (e.g., when session expired and user hits /logout)
+    Route::get('/logout', [GoogleAuthController::class, 'logout'])->name('logout.get');
 
 // Protected routes
 Route::middleware(['auth', 'auth.user'])->group(function () {

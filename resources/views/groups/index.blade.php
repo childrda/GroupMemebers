@@ -44,9 +44,15 @@
                 <div>
                     <label for="group_email" class="block text-sm font-medium text-gray-700">Group Email Address</label>
                     <div class="mt-1 flex rounded-md shadow-sm">
+                        @php
+                            $emailDomain = config('services.email_domain');
+                            $placeholder = $emailDomain
+                                ? "all-elementary-staff or all-elementary-staff@{$emailDomain}"
+                                : "all-elementary-staff@domain.com";
+                        @endphp
                         <input type="text" name="group_email" id="group_email" required
                             class="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-l-md border border-gray-300 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                            placeholder="all-elementary-staff or all-elementary-staff@domain.com"
+                            placeholder="{{ $placeholder }}"
                             value="{{ old('group_email') }}">
                         <button type="submit" id="search-button"
                             class="inline-flex items-center px-4 py-2 border border-transparent rounded-r-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
@@ -58,10 +64,9 @@
                         </button>
                     </div>
                     <p class="mt-2 text-sm text-gray-500">
+                        Enter a group to search.
                         @if(config('services.email_domain'))
-                            You can enter just the group name (e.g., "all-elementary-staff") or the full email address. The domain "@{{ config('services.email_domain') }}" will be added automatically if omitted.
-                        @else
-                            Enter the full group email address (e.g., "all-elementary-staff@domain.com")
+                            <span class="ml-1 text-gray-400">(Domain: {{ '@' . config('services.email_domain') }})</span>
                         @endif
                     </p>
                     @error('group_email')

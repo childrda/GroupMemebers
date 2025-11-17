@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GroupController;
+use App\Http\Controllers\Admin\AdminUserController;
 use Illuminate\Support\Facades\Route;
 
 // Public routes
@@ -31,4 +32,9 @@ Route::middleware(['auth', 'auth.user'])->group(function () {
     Route::match(['get', 'post'], '/groups/search', [GroupController::class, 'search'])->name('groups.search');
     Route::post('/groups/download', [GroupController::class, 'downloadCsv'])->name('groups.download');
     Route::post('/logout', [GoogleAuthController::class, 'logout'])->name('logout');
+});
+
+// Admin routes
+Route::middleware(['auth', 'auth.user', 'admin'])->prefix('admin')->name('admin.')->group(function () {
+    Route::resource('users', AdminUserController::class);
 });

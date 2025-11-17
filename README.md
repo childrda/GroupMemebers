@@ -20,12 +20,15 @@ A Laravel 11 application that allows users to search Google Workspace groups and
 
 - Ubuntu Server (20.04 LTS or later recommended)
 - PHP 8.2 or higher
-- Apache 2.4+
+- Apache 2.4+ with SSL support
 - MySQL 8.0+ or MariaDB 10.6+
 - Composer
+- **Domain name** with DNS pointing to your server (required for SSL)
 - Google Workspace account with admin access
 - Google OAuth credentials
 - Google Service Account with domain-wide delegation
+
+**Important:** This application **requires SSL/HTTPS** and must run on port 443. You must have a valid domain name configured before installation.
 
 ## Server Installation (Ubuntu)
 
@@ -117,44 +120,95 @@ sudo apt install git -y
 ```bash
 sudo a2enmod rewrite
 sudo a2enmod headers
+sudo a2enmod ssl
 sudo systemctl restart apache2
 ```
 
-### 8. Configure Apache for Laravel
+### 8. Set Up SSL with Let's Encrypt
 
-Create a new Apache virtual host configuration:
+**Note:** This application requires SSL/HTTPS and must run on port 443. You must have a domain name configured and pointing to your server's IP address.
+
+Install Certbot:
 
 ```bash
-sudo nano /etc/apache2/sites-available/groupmembers.conf
+sudo apt install certbot python3-certbot-apache -y
 ```
 
-Add the following configuration (replace `your-domain.com` with your actual domain or server IP):
+Obtain SSL certificate (replace `your-domain.com` with your actual domain):
+
+```bash
+sudo certbot certonly --standalone -d your-domain.com -d www.your-domain.com
+```
+
+Follow the prompts to complete SSL certificate generation. You'll need to provide an email address and agree to the terms of service.
+
+### 9. Configure Apache for Laravel with SSL
+
+Create a new Apache virtual host configuration for HTTPS (port 443):
+
+```bash
+sudo nano /etc/apache2/sites-available/groupmembers-ssl.conf
+```
+
+Add the following configuration (replace `your-domain.com` with your actual domain):
 
 ```apache
-<VirtualHost *:80>
+<VirtualHost *:443>
     ServerName your-domain.com
     ServerAlias www.your-domain.com
     DocumentRoot /var/www/groupmembers/public
+
+    SSLEngine on
+    SSLCertificateFile /etc/letsencrypt/live/your-domain.com/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/your-domain.com/privkey.pem
+    Include /etc/letsencrypt/options-ssl-apache.conf
 
     <Directory /var/www/groupmembers/public>
         AllowOverride All
         Require all granted
     </Directory>
 
-    ErrorLog ${APACHE_LOG_DIR}/groupmembers_error.log
-    CustomLog ${APACHE_LOG_DIR}/groupmembers_access.log combined
+    ErrorLog ${APACHE_LOG_DIR}/groupmembers_ssl_error.log
+    CustomLog ${APACHE_LOG_DIR}/groupmembers_ssl_access.log combined
 </VirtualHost>
 ```
 
-Enable the site and disable the default site:
+Create HTTP to HTTPS redirect configuration:
+
+```bash
+sudo nano /etc/apache2/sites-available/groupmembers.conf
+```
+
+Add the following to redirect all HTTP traffic to HTTPS:
+
+```apache
+<VirtualHost *:80>
+    ServerName your-domain.com
+    ServerAlias www.your-domain.com
+    
+    RewriteEngine On
+    RewriteCond %{HTTPS} off
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+</VirtualHost>
+```
+
+Enable the sites and disable the default site:
 
 ```bash
 sudo a2ensite groupmembers.conf
+sudo a2ensite groupmembers-ssl.conf
 sudo a2dissite 000-default.conf
 sudo systemctl restart apache2
 ```
 
-### 9. Clone the Application
+Verify SSL is working by checking Apache status:
+
+```bash
+sudo systemctl status apache2
+sudo apache2ctl -S
+```
+
+### 10. Clone the Application
 
 ```bash
 cd /var/www
@@ -163,13 +217,13 @@ sudo chown -R www-data:www-data /var/www/groupmembers
 cd groupmembers
 ```
 
-### 10. Install PHP Dependencies
+### 11. Install PHP Dependencies
 
 ```bash
 sudo -u www-data composer install --no-dev --optimize-autoloader
 ```
 
-### 11. Configure Environment
+### 12. Configure Environment
 
 ```bash
 sudo -u www-data cp example.env .env
@@ -178,7 +232,7 @@ sudo nano .env
 
 Update the following in `.env`:
 - `APP_NAME` - Your application name
-- `APP_URL` - Your domain URL (e.g., `http://your-domain.com`)
+- `APP_URL` - Your domain URL **must use HTTPS** (e.g., `https://your-domain.com`)
 - `DB_CONNECTION=mysql`
 - `DB_HOST=127.0.0.1`
 - `DB_PORT=3306`
@@ -186,13 +240,15 @@ Update the following in `.env`:
 - `DB_USERNAME=groupmembers`
 - `DB_PASSWORD=your_strong_password_here`
 
-### 12. Generate Application Key
+**Important:** The `APP_URL` must use `https://` as the application requires SSL.
+
+### 13. Generate Application Key
 
 ```bash
 sudo -u www-data php artisan key:generate
 ```
 
-### 13. Set File Permissions
+### 14. Set File Permissions
 
 ```bash
 sudo chown -R www-data:www-data /var/www/groupmembers
@@ -201,20 +257,28 @@ sudo chmod -R 775 /var/www/groupmembers/storage
 sudo chmod -R 775 /var/www/groupmembers/bootstrap/cache
 ```
 
-### 14. Run Database Migrations
+### 15. Run Database Migrations
 
 ```bash
 sudo -u www-data php artisan migrate
 ```
 
-### 15. (Optional) Set Up SSL with Let's Encrypt
+### 16. Set Up SSL Certificate Auto-Renewal
+
+Let's Encrypt certificates expire every 90 days. Set up automatic renewal:
 
 ```bash
-sudo apt install certbot python3-certbot-apache -y
-sudo certbot --apache -d your-domain.com -d www.your-domain.com
+sudo systemctl enable certbot.timer
+sudo systemctl start certbot.timer
 ```
 
-Follow the prompts to complete SSL setup.
+Test the renewal process:
+
+```bash
+sudo certbot renew --dry-run
+```
+
+This ensures your SSL certificate will be automatically renewed before expiration.
 
 ## Application Installation
 
@@ -313,8 +377,10 @@ VALUES ('Admin User', 'admin@yourdomain.com', NOW(), 1, NOW(), NOW());
 
 ### Production (Apache)
 
-If you've set up Apache as described above, simply navigate to your domain:
-- `http://your-domain.com` or `https://your-domain.com` (if SSL is configured)
+If you've set up Apache as described above, navigate to your domain using HTTPS:
+- `https://your-domain.com`
+
+**Note:** HTTP traffic will automatically redirect to HTTPS. The application only accepts connections on port 443 (HTTPS).
 
 ### Development Server
 
@@ -364,6 +430,9 @@ The application requires the following Google Directory API scopes:
 - Use strong passwords for your MySQL database user
 - Regularly update your system packages: `sudo apt update && sudo apt upgrade`
 - Consider setting up a firewall (UFW) to restrict access to necessary ports only
+- **SSL/HTTPS is mandatory** - The application only accepts secure connections on port 443
+- Keep SSL certificates up to date - Let's Encrypt certificates auto-renew every 90 days
+- Ensure your domain's DNS is properly configured before setting up SSL
 
 ## Troubleshooting
 
@@ -378,6 +447,14 @@ The application requires the following Google Directory API scopes:
 - Check Apache error logs: `sudo tail -f /var/log/apache2/error.log`
 - Check Laravel logs: `tail -f /var/www/groupmembers/storage/logs/laravel.log`
 - Verify file permissions on `storage` and `bootstrap/cache` directories
+
+**SSL Certificate Issues:**
+- Verify SSL module is enabled: `sudo a2enmod ssl && sudo systemctl restart apache2`
+- Check certificate paths in virtual host config match your domain
+- Verify certificate files exist: `sudo ls -la /etc/letsencrypt/live/your-domain.com/`
+- Test SSL configuration: `sudo apache2ctl configtest`
+- Check if port 443 is open: `sudo ufw status` (if firewall is enabled)
+- Ensure DNS is properly configured and pointing to your server IP
 
 ### Database Connection Issues
 
